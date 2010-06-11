@@ -3,12 +3,12 @@
 include torrent
 
 # System constants
-Root_storage_dir = "/mnt/gamma.beta/"
-Root_dl_dir = "/home/andy/file.sharing/"
+ROOT_STORAGE_DIR = "/home/andy"
+ROOT_DL_DIR = "/home/andy/file.sharing/"
 
 # Other constants
-Movie_edition = "UNRATED|PROPER|LIMITED|Unrated"
-Movie_source = "DVDRip|BDRip|R5|\d\d\d\d"
-Movie_extras = "*.nfo *.srt *.jpg Subs"
+MOVIE_EDITION = "UNRATED|PROPER|LIMITED|Ultimate\.Cut|Directors\.Cut"
+MOVIE_SOURCE = "DVDRip|BDRip|R5|TS|TeleSync"
+MOVIE_EXTRAS = "*.nfo, *.srt, *.jpg, Subs"
 
 Torrent.new(ARGV[0]).organize

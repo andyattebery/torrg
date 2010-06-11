@@ -1,7 +1,7 @@
 class Torrent
-  def self.new(path = nil)
+  def self.new(path)
     @path = path
-    klass = case get_type()
+    klass = case determine_type
       when 'birp' then BirpTorrent
       when 'lossless' then LosslessTorrent
       when 'lossy' then LossyTorrent
@@ -19,7 +19,7 @@ class Torrent
   end
   
   private
-  def get_type
+  def determine_type
     @path =~ /\A#{Root_dl_dir}(.+)\Z/
     tracker_path = $1
     tracker_path =~ /\A([\w\.]*)\/*./
@@ -29,7 +29,24 @@ class Torrent
     @name = $2
   end
   
-  def clean
+  def clean_title(title)
+    title = title.gsub(/\b\w/) { $&.upcase }
+    title = title.gsub('.', '\ ')
+    title = title.gsub('_', '\ ')
+    title
+  end
+  
+  def unrar(src, dst)
+    rar_path = `find #{src} -type f -name '*.rar'`
+    if(rar_path.to_s.match("part01"))
+      rar_path =~ /(.+\.part01.rar)/
+      rar_path = $1
+    end
+    rar_path = rar_path.chomp
+    cmd = "unrar e #{path}/#{name} #{path}"
+    puts cmd
+    system(cmd)
+  end
 end
 
 class BirpTorrent < Torrent
@@ -83,7 +100,27 @@ class MovieTorrent < Torrent
   end
     
   def organize
+    @name =~ /\A([\w\.]*)\.(\d{4}\.)?(#{Movie_edition}|#{Movie_source})*/i
+  	@title = clean_title($1)
+    mv_dir = "#{Root_storage_dir}movies/standard.def/#{@title}"
+    puts `mkdir -p #{mv_dir}`
     
+
+    puts `mv #{movie_extras} #{mv_dir}`
+    puts `ln -s #{mv_dir}/#{movie_extras}`
+  end
+  
+  private
+  def unrar_cds
+    Dir.chdir(@path)
+    cd_paths = Dir.glob("CD*")
+    if (!cd_paths.empty?)
+      cd_paths.each do |cd_path|
+        unrar(cd_path, mv_dir)
+      end
+    else
+      unrar(path, mv_dir)
+    end
   end
 end
 
@@ -105,7 +142,14 @@ class TVShowTorrent < Torrent
   end
     
   def organize
-    
+    @name =~ /\A(.+)\.[Ss](\d+)[eE]\d+.*\Z/
+    if nil==$1
+      @name =~ /\A(.+)\.(\d+)x\d+.*\Z/
+    end
+    @title = clean_title($1)
+    @season_num = $2
+    # TODO: Find out if it is .rar's or an .avi or .mkv
+    mv_dir = "#{Root_storage_dir}tv.shows/standard.def/#{@title}/Season\\ #{@season_num}/"
   end
 end
 
