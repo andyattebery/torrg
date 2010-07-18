@@ -29,6 +29,10 @@ describe Action do
     action.should be_instance_of MoveAction
   end
   
+  it "should recurse if directories are found" do
+    action = Action.new(TEST_FILE_DIR + 'test.name.s01-02.dvdrip-group')
+  end
+  
 end
 
 describe UnrarAction do

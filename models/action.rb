@@ -3,6 +3,7 @@ MOVIE_EXTRAS = "*.nfo *.srt *.jpg Subs"
 class Action
   def self.new(path)
     klass = determine_class(path)
+    puts "file_list[0]: #{@file_list[0]}"
     @@file_path = File.expand_path(@file_list[0])
     klass == self ? super() : klass.new(path)
   end
@@ -21,8 +22,10 @@ class Action
     # Finds video file ignoring sample videos
     elsif (@file_list = (Dir.glob("**/*.{avi,mkv}").delete_if { |f| f.downcase.include? "sample" })).any?
       return MoveAction
-    else
-      raise 'No .rar, .avi, or .mkv files where found...'
+    elsif (@file_list = (Dir.glob("**/*").select { |f| File.directory?(f) })).any?
+      @file_list.each { |f| Action.new(File.expand_path(f)) }
+    # else
+    #   puts "No .rar, .avi, or .mkv files where found..."
     end
   end
 end
