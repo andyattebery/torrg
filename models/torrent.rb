@@ -1,17 +1,12 @@
+require 'rubygems'
+require 'net/http'
+require 'xmlsimple'
+
 class Torrent
-  def self.new(path)
-    @path = path
-    klass = case determine_type
-      when 'birp' then BirpTorrent
-      when 'lossless' then LosslessTorrent
-      when 'lossy' then LossyTorrent
-      when 'misc' then MiscTorrent
-      when 'movies' then MovieTorrent
-      when 'promo.only' then PromoOnlyTorrent
-      when 'tv.shows' then TVShowTorrent
-      when 'tv.show.packs' then TVShowPackTorrent
-    end
-    klass == self ? super() : klass.new(path)
+
+  def initialize(p, t)
+    @path = p
+    @torrent = t
   end
   
   def organize
@@ -36,60 +31,61 @@ class Torrent
     title
   end
   
-  def unrar(src, dst)
-    rar_path = `find #{src} -type f -name '*.rar'`
-    if(rar_path.to_s.match("part01"))
-      rar_path =~ /(.+\.part01.rar)/
-      rar_path = $1
+  def escape_path(path)
+    path = path.gsub(" ", "\\ ")
+    path = path.gsub("'", "\\\\'")
+    path = path.gsub("(", "\\(")
+    path = path.gsub(")", "\\)")
+    path = path.gsub("[", "\\[")
+    path = path.gsub("]", "\\]")
+  end
+  
+end
+
+class MusicTorrent < Torrent
+  def initialize
+    get_info()
+  end
+    
+  def organize
+    dir = "#{MUSIC_DIR}/#{@artist[0]}/#{@artist}/#{@year} - #{@album}"
+    if !File.exists?(dir) then Dir.mkdirs(dir) end
+    if File.exists?("Folder.jpg") then File.rename("Folder.jpg", "folder.jpg") end
+    if !File.exists?("folder.jpg") then get_albumart() end
+  end
+  
+  private
+  def move_flac
+    files = Dir.glob("*.flac")
+    files.each do |f|
+      escaped_f = escape_path(f)
+      `metaflac --show-tag=TITLE #{escaped_f}` =~ /TITLE=(.*)/
+      title = $1
+      `metaflac --show-tag=TRACKNUMBER #{escaped_f}` =~ /TRACKNUMBER=(.*)/
+      number = $1
+      FileUtils.mv(f, "#{number} - #{title}.flac")
     end
-    rar_path = rar_path.chomp
-    cmd = "unrar e #{path}/#{name} #{path}"
-    puts cmd
-    system(cmd)
   end
-end
-
-class BirpTorrent < Torrent
-  def self.new(path)
-    puts "New Birp torrent: #{path}"
-    super
+  
+  
+  
+  def get_info
+    # @torrent =~ /^(.+)\ -\ (.+)\ -\ (\d{4})\ \((.+)\ -\ (.+)\ -\ (.+)\).torrent$/
+    @torrent =~ /^(.+)\ -\ (.+)\ -\ (\d{4})/
+    @artist = $1
+    @album = $2
+    @year = $3
   end
-    
-  def organize
-    
-  end
-end
-
-class LosslessTorrent < Torrent
-  def self.new(path)
-    puts "New Lossless torrent: #{path}"
-    super
-  end
-    
-  def organize
-    
-  end
-end
-
-class LossyTorrent < Torrent
-  def self.new(path)
-    puts "New Lossy torrent: #{path}"
-    super
-  end
-    
-  def organize
-    
-  end
-end
-
-class MiscTorrent < Torrent
-  def self.new(path)
-    puts "New Misc torrent: #{path}"
-    super
-  end
-    
-  def organize
-    
+  
+  def get_albumart
+    url = "http://ws.audioscrobbler.com/2.0/?method=album.getinfo&" +
+          "api_key=#{API_KEY}&artist=#{@artist}&album=#{@album}"
+    uri = URI.parse(URI.escape(url))
+    response = Net::HTTP.get_response(uri).body
+    xml = XmlSimple.xml_in(response)
+    albumart_url = xml["album"][0]["image"][3]["content"]
+    albumart_uri = URI.parse(albumart_url)
+    open("folder.jpg", "wb") { |f| f.write(Net::HTTP.get_response(albumart_uri).body) }
   end
 end
 
@@ -124,17 +120,6 @@ class MovieTorrent < Torrent
   end
 end
 
-class PromoOnlyTorrent < Torrent
-  def self.new(path)
-    puts "New PromoOnly torrent: #{path}"
-    super
-  end
-    
-  def organize
-    
-  end
-end
-
 class TVShowTorrent < Torrent
   def self.new(path)
     puts "New TVShow torrent: #{path}"
@@ -150,16 +135,5 @@ class TVShowTorrent < Torrent
     @season_num = $2
     # TODO: Find out if it is .rar's or an .avi or .mkv
     mv_dir = "#{Root_storage_dir}tv.shows/standard.def/#{@title}/Season\\ #{@season_num}/"
-  end
-end
-
-class TVShowPackTorrent < Torrent
-  def self.new(path)
-    puts "New TVShowPack torrent: #{path}"
-    super
-  end
-    
-  def organize
-    
   end
 end
