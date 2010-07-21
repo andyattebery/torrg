@@ -1,12 +1,18 @@
-require 'rubygems'
 require 'net/http'
+require 'FileUtils'
+require 'rubygems'
 require 'xmlsimple'
+require 'id3lib'
 
 class Torrent
 
   def initialize(p, t)
     @path = p
     @torrent = t
+    @path =~ /^#{DOWNLOAD_DIR}\/([\w\.]*)\/[\w\.]*\/([\w\.]*)\//
+    @tracker = $1
+    @dir_name = $2
+    Dir.chdir(@path)
   end
   
   def organize
@@ -14,16 +20,6 @@ class Torrent
   end
   
   private
-  def determine_type
-    @path =~ /\A#{Root_dl_dir}(.+)\Z/
-    tracker_path = $1
-    tracker_path =~ /\A([\w\.]*)\/*./
-    @tracker = $1
-    tracker_path =~ /\A#{@tracker}\/([\w\.]*)\/(.*)\Z/
-    @type = $1
-    @name = $2
-  end
-  
   def clean_title(title)
     title = title.gsub(/\b\w/) { $&.upcase }
     title = title.gsub('.', '\ ')
@@ -40,46 +36,88 @@ class Torrent
     path = path.gsub("]", "\\]")
   end
   
+  def rename_ext(ext, filename)
+    if (f = Dir.glob("*.#{ext}")).any?
+      File.rename(f[0], "#{filename}.#{ext}")
+    end
+  end
+  
 end
 
+
 class MusicTorrent < Torrent
-  def initialize
-    get_info()
+  def initialize(p, t)
+    super(p,t)
   end
     
   def organize
-    dir = "#{MUSIC_DIR}/#{@artist[0]}/#{@artist}/#{@year} - #{@album}"
-    if !File.exists?(dir) then Dir.mkdirs(dir) end
-    if File.exists?("Folder.jpg") then File.rename("Folder.jpg", "folder.jpg") end
-    if !File.exists?("folder.jpg") then get_albumart() end
+    if (files = Dir.glob("*.{flac,m3u,cue,log,jpg}")).any?      
+      if !File.exists?(@dst) then FileUtils.mkdir_p(@dst) end
+      FileUtils.cp_r(files, @dst)
+      Dir.chdir(@dst)
+      
+      if Dir.glob("*.flac").any? then organize_flac end
+      if (Dir.glob("*.mp3").any? && @path =~ /mainstream.radio/i) then organize_promo_only end 
+    end
+    
+    Dir.glob("*").each do |f| 
+      if File.directory?(f) then MusicTorrent.new(f, @torrent).organize() end
+    end
   end
   
   private
-  def move_flac
-    files = Dir.glob("*.flac")
-    files.each do |f|
+  def organize_promo_only
+    # Determin info
+    @torrent.to_lower() =~ /(january|february|march|april|may|june|july|august|september|october|november|december)/
+    @month = $1
+    @torrent =~ /(\d{4})/
+    @year = $1
+    @dst = "#{MUSIC_DIR}/Collections/Mainstream Radio/#{@year} - Mainstream Radio/" +
+            "#{MONTH_NUMS[@month]} - Mainstream Radio [#{@month.capitalize} #{@year}]"
+    # Rename music files based on tags
+    Dir.glob("*.mp3").each do |f|
+      Mp3Info.open(f) do |mp3|
+        if ( (num = mp3.tag.tracknum) != nil) && 
+              ((title = mp3.tag.title) != nil) &&
+              ((artist = mp3.tag.artist) != nil )
+          File.rename(f, "#{num} - #{artist} - #{title}.mp3")
+        end
+      end
+    end
+    # Organize extras
+    rename_ext("nfo", "Promo Only Mainstream Radio - #{@month.capitalize} #{year}")
+    rename_ext("m3u", "Promo Only Mainstream Radio - #{@month.capitalize} #{year}")
+  end
+  
+  def organize_flac(dir)
+    # Determine info
+    @torrent =~ /^\/#{TORRENT_DIR}\/.+\/.+\/(.+)\ -\ (.+)\ -\ (\d{4})/
+    @artist = $1
+    @album = $2
+    @year = $3
+    @dst = "#{MUSIC_DIR}/Artists/#{@artist[0..0]}/#{@artist}/#{@year} - #{@album}"
+    # Rename music files based on tags
+    dir.each do |f|
       escaped_f = escape_path(f)
       `metaflac --show-tag=TITLE #{escaped_f}` =~ /TITLE=(.*)/
       title = $1
       `metaflac --show-tag=TRACKNUMBER #{escaped_f}` =~ /TRACKNUMBER=(.*)/
       number = $1
-      FileUtils.mv(f, "#{number} - #{title}.flac")
+      if title != nil && number != nil
+        File.rename(f, "#{number} - #{title}.flac")
+      end
     end
-  end
-  
-  
-  
-  def get_info
-    # @torrent =~ /^(.+)\ -\ (.+)\ -\ (\d{4})\ \((.+)\ -\ (.+)\ -\ (.+)\).torrent$/
-    @torrent =~ /^(.+)\ -\ (.+)\ -\ (\d{4})/
-    @artist = $1
-    @album = $2
-    @year = $3
+    # Organize extras
+    if File.exists?("Folder.jpg") then File.rename("Folder.jpg", "folder.jpg") end
+    if !File.exists?("folder.jpg") then get_albumart() end
+    rename_ext("m3u", "#{@artist} - #{@year} - #{@album}")
+    rename_ext("cue", "#{@artist} - #{@album}")
+    rename_ext("log", "#{@artist} - #{@album}")
   end
   
   def get_albumart
     url = "http://ws.audioscrobbler.com/2.0/?method=album.getinfo&" +
-          "api_key=#{API_KEY}&artist=#{@artist}&album=#{@album}"
+          "api_key=#{LASTFM_API_KEY}&artist=#{@artist}&album=#{@album}"
     uri = URI.parse(URI.escape(url))
     response = Net::HTTP.get_response(uri).body
     xml = XmlSimple.xml_in(response)
@@ -90,9 +128,13 @@ class MusicTorrent < Torrent
 end
 
 class MovieTorrent < Torrent
-  def self.new(path)
-    puts "New Movie torrent: #{path}"
-    super
+  def initialize(p, t)
+    super(p,t)
+    @dir_name =~ /^([\w\.]*)\.(\d{4}\.)?(#{MOVIE_EDITION}|#{MOVIE_SOURCE})*/i
+    @artist = $1
+    @album = $2
+    @year = $3
+    @dst = "#{MUSIC_DIR}/#{@artist[0..0]}/#{@artist}/#{@year} - #{@album}"
   end
     
   def organize
@@ -122,7 +164,7 @@ end
 
 class TVShowTorrent < Torrent
   def self.new(path)
-    puts "New TVShow torrent: #{path}"
+    puts "New TV Show torrent: #{path}"
     super
   end
     
