@@ -65,12 +65,17 @@ class Torrent
     albumart_uri = URI.parse(albumart_url)
     open("folder.jpg", "wb") { |f| f.write(Net::HTTP.get_response(albumart_uri).body) }
   end
+  
+  def fix_track_num(num)
+    return 1 == num.length ? "0#{num}" : num
+  end
 end
 
 
 class MusicFlacTorrent < Torrent
   def initialize(f, t)
     super(f,t)
+    @torrent = @torrent.gsub("amp;", "")
     @torrent =~ /^(.+)\ -\ (.+)\ -\ (\d{4})/
     @artist = $1
     @album = $2
@@ -87,9 +92,10 @@ class MusicFlacTorrent < Torrent
       `metaflac --show-tag=TITLE #{escaped_f}` =~ /TITLE=(.*)/
       title = $1
       `metaflac --show-tag=TRACKNUMBER #{escaped_f}` =~ /TRACKNUMBER=(.*)/
-      number = $1
-      if title != nil && number != nil
-        File.rename(f, "#{number} - #{title}.flac")
+      num = $1
+      if title != nil && num != nil
+        num = fix_track_num(num)
+        File.rename(f, "#{num} - #{title}.flac")
       end
     end
     # Organize extras
@@ -123,16 +129,14 @@ class MusicPromoOnlyTorrent < Torrent
     rename_ext("*[bB]ack*", "jpg", "Promo Only Mainstream Radio - #{@month.capitalize} #{@year} - Back")
     rename_ext("*", "nfo", "Promo Only Mainstream Radio - #{@month.capitalize} #{@year}")
     rename_ext("*", "m3u", "Promo Only Mainstream Radio - #{@month.capitalize} #{@year}")
-    puts "Got here"
     # Rename music files based on tags
     Dir.glob("*.mp3").each do |f|
-      puts f
       tag = ID3Lib::Tag.new(f)
       if ( (num = tag.track) != nil) && 
             ((title = tag.title) != nil) &&
             ((artist = tag.artist) != nil )
         num =~ /(\d+)\//
-        num = 1 == $1.length ? "0#{$1}" : $1
+        num = fix_track_num($1)
         tag.album = "Promo Only Mainstream Radio " +
                     "[#{MONTH_NUMS[@month]} - #{@month.capitalize} #{@year}]"
         if File.exists?("folder.jpg")
