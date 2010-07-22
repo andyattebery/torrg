@@ -1,8 +1,7 @@
 require 'net/http'
-require 'FileUtils'
+require 'fileutils'
 require 'rubygems'
 require 'xmlsimple'
-require 'mp3info'
 require 'id3lib'
 
 class Torrent
@@ -110,7 +109,8 @@ class MusicPromoOnlyTorrent < Torrent
     @month = $1
     @torrent =~ /(\d{4})/
     @year = $1
-    @dst = "#{MUSIC_DIR}/Collections/Mainstream Radio/#{@year} - Mainstream Radio/" +
+    @dst = "#{MUSIC_DIR}/Collections/Promo Only Mainstream Radio/" +
+            "#{@year} - Promo Only Mainstream Radio/" +
             "#{MONTH_NUMS[@month]} - Mainstream Radio [#{@month.capitalize} #{@year}]"
     @files = Dir.glob("*.{mp3,m3u,nfo,jpg}")
   end
