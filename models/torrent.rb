@@ -4,6 +4,8 @@ require 'rubygems'
 require 'xmlsimple'
 require 'id3lib'
 
+require File.expand_path('../action_factory', __FILE__)
+
 class Torrent
 
   def initialize(file_path, torrent_path)
@@ -13,7 +15,7 @@ class Torrent
     @torrent = $3
     
     file_path =~ /^(.*)\/([^\/]+)$/
-    @name = $2
+    @file_name = $2
     @file_dir = File.directory?(file_path) ? file_path : $1 
     Dir.chdir(@file_dir)
   end
@@ -57,7 +59,7 @@ class Torrent
   
   def get_albumart
     url = "http://ws.audioscrobbler.com/2.0/?method=album.getinfo&" +
-          "api_key=#{LASTFM_API_KEY}&artist=#{@artist}&album=#{@album}"
+          "api_key=0ac34ed861402be0abe6201163bf3243&artist=#{@artist}&album=#{@album}"
     uri = URI.parse(URI.escape(url))
     response = Net::HTTP.get_response(uri).body
     xml = XmlSimple.xml_in(response)
@@ -80,12 +82,12 @@ class MusicFlacTorrent < Torrent
     @artist = $1
     @album = $2
     @year = $3
-    @dst = "#{MUSIC_DIR}/Artists/#{@artist[0..0]}/#{@artist}/#{@year} - #{@album}"
+    @dst_dir = "#{MUSIC_DIR}/Artists/#{@artist[0..0]}/#{@artist}/#{@year} - #{@album}"
     @files = Dir.glob("*.{flac,jpg,m3u,cue,log,nfo}")
   end
   
   def organize
-    copy_to_dst(@files, @dst)
+    copy_to_dst(@files, @dst_dir)
     # Rename music files based on tags
     Dir.glob("*.flac").each do |f|
       escaped_f = escape_path(f)
@@ -115,14 +117,14 @@ class MusicPromoOnlyTorrent < Torrent
     @month = $1
     @torrent =~ /(\d{4})/
     @year = $1
-    @dst = "#{MUSIC_DIR}/Collections/Promo Only Mainstream Radio/" +
+    @dst_dir = "#{MUSIC_DIR}/Collections/Promo Only Mainstream Radio/" +
             "#{@year} - Promo Only Mainstream Radio/" +
             "#{MONTH_NUMS[@month]} - Mainstream Radio [#{@month.capitalize} #{@year}]"
     @files = Dir.glob("*.{mp3,m3u,nfo,jpg}")
   end
    
   def organize
-    copy_to_dst(@files, @dst)
+    copy_to_dst(@files, @dst_dir)
     # Organize extras
     if (c = Dir.glob("*[fF]ront*.jpg")) then FileUtils.cp(c[0], "folder.jpg") end
     rename_ext("*[fF]ront*", "jpg", "Promo Only Mainstream Radio - #{@month.capitalize} #{@year} - Front")
@@ -139,43 +141,58 @@ class MusicPromoOnlyTorrent < Torrent
         num = fix_track_num($1)
         tag.album = "Promo Only Mainstream Radio " +
                     "[#{MONTH_NUMS[@month]} - #{@month.capitalize} #{@year}]"
-        if File.exists?("folder.jpg")
-          cover = {
-            :id           => :APIC,
-            :mimetype     => 'image/jpeg',
-            :picturetype  => 3,
-            :description  => 'Front album art',
-            :textenc      => 0,
-            :data         => File.read("folder.jpg")
-          }
-          tag << cover
-        end
+        # embed_artwork(tag)
         tag.update!
         File.rename(f, "#{num} - #{artist} - #{title}.mp3")
       end
     end
   end
+  
+  private 
+  def embed_artwork(tag)
+    if File.exists?("folder.jpg")
+      cover = {
+        :id           => :APIC,
+        :mimetype     => 'image/jpeg',
+        :picturetype  => 3,
+        :description  => 'Front album art',
+        :textenc      => 0,
+        :data         => File.read("folder.jpg")
+      }
+      tag << cover
+    end
+  end
 end
+
+
+class TVShowTorrent < Torrent
+  def initialize(file_path, torrent_path)
+    super(file_path, torrent_path)
+    @file_name =~ /^(.+)\.[Ss]{0,1}(\d+)x{0,1}[Ee]{0,1}\d+\./
+    @title = clean_title($1)
+    @season_num = $2
+    @season_num = "0" == @season_num[0..0] ? @season_num[1..1] : @season_num
+    @dst_dir = "#{TV_SHOW_DIR}/#{@title}/Season #{@season_num}"
+    @files = Dir.glob("*.{rar,mkv,avi,nfo,srt,sub}")
+  end
+    
+  def organize
+    ActionFactory.instance.create_action(@files, @dst_dir).execute
+  end
+end
+
 
 class MovieTorrent < Torrent
   def initialize(p, t)
     super(p,t)
-    @dir_name =~ /^([\w\.]*)\.(\d{4}\.)?(#{MOVIE_EDITION}|#{MOVIE_SOURCE})*/i
-    @artist = $1
-    @album = $2
-    @year = $3
-    @dst = "#{MUSIC_DIR}/#{@artist[0..0]}/#{@artist}/#{@year} - #{@album}"
+    @file_name =~ /^([\w\.]*)\.(\d{4}\.)?(#{MOVIE_EDITION}|#{MOVIE_SOURCE})*/i
+    @title = clean_title($1)
+    @dst_dir = "#{MOVIE_DIR}/#{@title}/"
+    @files = Dir.glob("*.{rar,mkv,avi,nfo,srt,sub,jpg}")
   end
     
   def organize
-    @name =~ /\A([\w\.]*)\.(\d{4}\.)?(#{Movie_edition}|#{Movie_source})*/i
-  	@title = clean_title($1)
-    mv_dir = "#{Root_storage_dir}movies/standard.def/#{@title}"
-    puts `mkdir -p #{mv_dir}`
-    
-
-    puts `mv #{movie_extras} #{mv_dir}`
-    puts `ln -s #{mv_dir}/#{movie_extras}`
+    ActionFactory.instance.create_action(@files, @dst_dir).execute
   end
   
   private
@@ -189,24 +206,5 @@ class MovieTorrent < Torrent
     else
       unrar(path, mv_dir)
     end
-  end
-end
-
-
-class TVShowTorrent < Torrent
-  def self.new(path)
-    puts "New TV Show torrent: #{path}"
-    super
-  end
-    
-  def organize
-    @name =~ /\A(.+)\.[Ss](\d+)[eE]\d+.*\Z/
-    if nil==$1
-      @name =~ /\A(.+)\.(\d+)x\d+.*\Z/
-    end
-    @title = clean_title($1)
-    @season_num = $2
-    # TODO: Find out if it is .rar's or an .avi or .mkv
-    mv_dir = "#{Root_storage_dir}tv.shows/standard.def/#{@title}/Season\\ #{@season_num}/"
   end
 end

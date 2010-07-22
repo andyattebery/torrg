@@ -22,12 +22,14 @@ class TorrentFactory
   include Singleton
   
   def create_torrent(file_path, torrent_path)
-    torrent_path =~ /\/[^\/]+\/([^\/]+)\/[^\/]+$/
-    case $1
-    when "music" then return MusicTorrentFactory.instance.create_torrent(file_path, torrent_path)
-    when "tv.show" then return TVShowTorrent.new(file_path, torrent_path)
-    when "movie" then return MovieTorrent.new(file_path, torrent_path)
-    else raise "Unknown torrent type: #{$1}"
+    if file_path =~ /movie/
+      return MovieTorrent.new(file_path, torrent_path)
+    elsif torrent_path =~ /music/
+      return MusicTorrentFactory.instance.create_torrent(file_path, torrent_path)
+    elsif file_path =~ /tv.show/
+      return TVShowTorrent.new(file_path, torrent_path)
+    els
+    else raise "Not movie, music, or tv.show"
     end
   end
 end
