@@ -5,7 +5,7 @@ require File.expand_path('../models/torrent_factory', __FILE__)
 require File.expand_path('../models/torrent', __FILE__)
 
 # Configuration
-CONF = YAML.load_file('torrg.yml')
+CONF = YAML.load_file(File.expand_path('../torrg.yml', __FILE__))
 MOVIE_DIR = File.expand_path(CONF['movie dir'])
 MUSIC_DIR = File.expand_path(CONF['music dir'])
 TVSHOW_DIR = File.expand_path(CONF['tv show dir'])
