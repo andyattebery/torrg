@@ -185,8 +185,8 @@ end
 class MovieTorrent < Torrent
   def initialize(p, t)
     super(p,t)
-    @file_name =~ /^([\w\.]*)\.(\d{4}\.)?(#{MOVIE_EDITION}|#{MOVIE_SOURCE})*/i
-    @title = clean_title($1)
+    last_char = (@file_name =~ /\d{4}|#{RELEASE_TYPE}|#{MOVIE_EDITION}|#{MOVIE_SOURCE}/i) - 2
+    @title = clean_title(@file_name[0..last_char])
     @dst_dir = "#{MOVIE_DIR}/#{@title}/"
     @files = Dir.glob("*.{rar,mkv,avi,nfo,srt,sub,jpg}")
   end

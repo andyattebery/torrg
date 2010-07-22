@@ -14,13 +14,14 @@ end
 class UnrarAction < Action
   def initialize(files, dst_dir)
     super(files, dst_dir)
-    @rar_file = (f = Dir.glob("*.part01.rar")) ? f : Dir.glob("*.rar")
+    @rar_file = (f = Dir.glob("*.part01.rar")).any? ? f : Dir.glob("*.rar")
     @files.delete_if { |f| f =~ /\.r[a\d][r\d]$/ }
   end
   
   def execute
-    system("unrar e #{@rar_file} #{dst_dir}")
-    MoveAction.new(@files, @dst_dir).execute
+    if !File.exists?(@dst_dir) then FileUtils.mkdir_p(@dst_dir) end
+    system("unrar e #{@rar_file} #{@dst_dir}")
+    FileUtils.cp_r(@files, @dst_dir)
   end
 end
 

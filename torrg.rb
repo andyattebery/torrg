@@ -10,6 +10,7 @@ MOVIE_DIR = File.expand_path(CONF['movie dir'])
 MUSIC_DIR = File.expand_path(CONF['music dir'])
 TV_SHOW_DIR = File.expand_path(CONF['tv show dir'])
 
+RELEASE_TYPE = "PROPER|REPACK"
 MOVIE_EDITION = "UNRATED|PROPER|LIMITED|Ultimate\.Cut|Directors\.Cut"
 MOVIE_SOURCE = "DVDRip|BDRip|R5|TS|TeleSync"
 
