@@ -15,8 +15,20 @@ class ActionFactory
         Torrent.new(File.expand_path(f), "")
       end
     else
-      puts "No .rar, .avi, or .mkv files where found..."
+      puts "No .rar, .avi, or .mkv files or directories where found..."
     end
   end
 end
 
+
+def unrar_cds
+  Dir.chdir(@file_path)
+  cd_paths = Dir.glob("CD*")
+  if (!cd_paths.empty?)
+    cd_paths.each do |cd_path|
+      unrar(cd_path, mv_dir)
+    end
+  else
+    unrar(path, mv_dir)
+  end
+end

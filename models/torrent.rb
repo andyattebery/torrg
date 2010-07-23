@@ -101,7 +101,7 @@ class MusicFlacTorrent < Torrent
       end
     end
     # Organize extras
-    if File.exists?("Folder.jpg") then File.rename("Folder.jpg", "folder.jpg") end
+    rename_ext("Folder", "jpg", "folder")
     if !File.exists?("folder.jpg") then get_albumart() end
     rename_ext("*", "m3u", "#{@artist} - #{@year} - #{@album}")
     rename_ext("*", "cue", "#{@artist} - #{@album}")
@@ -119,7 +119,7 @@ class MusicPromoOnlyTorrent < Torrent
     @year = $1
     @dst_dir = "#{MUSIC_DIR}/Collections/Promo Only Mainstream Radio/" +
             "#{@year} - Promo Only Mainstream Radio/" +
-            "#{MONTH_NUMS[@month]} - Mainstream Radio [#{@month.capitalize} #{@year}]"
+            "#{MONTH_NUMS[@month]} - Promo Only Mainstream Radio [#{@month.capitalize} #{@year}]"
     @files = Dir.glob("*.{mp3,m3u,nfo,jpg}")
   end
    
@@ -171,7 +171,7 @@ class TVShowTorrent < Torrent
     @file_name =~ /^(.+)\.[Ss]{0,1}(\d+)x{0,1}[Ee]{0,1}\d+\./
     @title = clean_title($1)
     @season_num = $2
-    @season_num = "0" == @season_num[0..0] ? @season_num[1..1] : @season_num
+    @season_num = ("0" == @season_num[0..0]) ? @season_num[1..1] : @season_num
     @dst_dir = "#{TV_SHOW_DIR}/#{@title}/Season #{@season_num}"
     @files = Dir.glob("*.{rar,mkv,avi,nfo,srt,sub}")
   end
@@ -193,18 +193,5 @@ class MovieTorrent < Torrent
     
   def organize
     ActionFactory.instance.create_action(@files, @dst_dir).execute
-  end
-  
-  private
-  def unrar_cds
-    Dir.chdir(@file_path)
-    cd_paths = Dir.glob("CD*")
-    if (!cd_paths.empty?)
-      cd_paths.each do |cd_path|
-        unrar(cd_path, mv_dir)
-      end
-    else
-      unrar(path, mv_dir)
-    end
   end
 end
