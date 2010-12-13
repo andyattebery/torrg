@@ -23,12 +23,11 @@ class TorrentFactory
   
   def create_torrent(file_path, torrent_path)
     if file_path =~ /movie/
-      return MovieTorrent.new(file_path, torrent_path)
+      # return MovieTorrent.new(file_path, torrent_path)
     elsif torrent_path =~ /music/
-      return MusicTorrentFactory.instance.create_torrent(file_path, torrent_path)
+      # return MusicTorrentFactory.instance.create_torrent(file_path, torrent_path)
     elsif file_path =~ /tv.show/
       return TVShowTorrent.new(file_path, torrent_path)
-    els
     else raise "Not movie, music, or tv.show"
     end
   end
